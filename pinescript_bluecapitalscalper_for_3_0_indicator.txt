@@ -1,0 +1,256 @@
+//@version=5
+indicator("BlueCapitalScalper for [Forex/Crypto]- 3.0",'BlueCapitalScalper for [Forex/Crypto]- 3.0', overlay=true)
+
+
+
+atrPeriod = 22//input(22, "ATR Length")
+factor = input.float(2.5, "Range", step = 0.01)+ 2.5
+
+[supertrend, direction] = ta.supertrend(factor, atrPeriod)
+
+
+// InSession(sess) =>
+//     na(time(timeframe.period, sess)) == false
+// sessionHours = input.session(defval="0915-1520", title="Session Hours")
+// weekendsStr = ":1234567" 
+// bgcolor(InSession(sessionHours + weekendsStr) ? color.blue : na, title="Session Hours", transp=95)
+// sec=InSession(sessionHours + weekendsStr)
+//bodyMiddle = plot((open + close) / 2, display=display.none)
+// upTrend = plot(direction < 0 ? supertrend : na, "Up Trend", color = color.green, style=plot.style_linebr)
+// downTrend = plot(direction < 0? na : supertrend, "Down Trend", color = color.red, style=plot.style_linebr)
+
+
+atrPeriod1 = 7//input(22, "ATR Length")
+factor1 = 2//input.float(3.9, "Factor", step = 0.01)
+
+[supertrend1, direction1] = ta.supertrend(factor1, atrPeriod1)
+
+//bodyMiddle1 = plot((open + close) / 2, display=display.none)
+
+// fill(bodyMiddle, upTrend, color.new(color.green, 90), fillgaps=false)
+// fill(bodyMiddle, downTrend, color.new(color.red, 90), fillgaps=false)
+
+// rsi = ta.rsi(close,14)
+
+// oversold = input(20)
+// overbought = input(80)
+
+rsi = ta.rsi(close,14)
+
+
+
+buy = (direction < 0 and direction1 < 0) and ta.crossover(rsi,50) and barstate.isconfirmed////and sec
+sell = (direction > 0 and direction1 > 0) and ta.crossunder(rsi,50) and barstate.isconfirmed//and sec
+
+// STEP 2:
+// Look if the close time of the current bar
+inDateRange = (time >= timestamp(syminfo.timezone, 2000,
+         1, 1, 0, 0)) and
+     (time < timestamp(syminfo.timezone, (1000+1000+23), 09, 5, 0, 0))
+//plotshape(true_trade)
+
+Stop = input.float(0.2,title = "StopLoss",step = 0.1)
+ 
+ProfitPerc = input.float(defval = 0.2,title = "TARGET",step = 0.1)
+ 
+ 
+
+long_entered = false
+long_entered := long_entered[1]
+ 
+short_entered = false
+short_entered := short_entered[1]
+
+
+
+buy := buy and not (long_entered or short_entered)
+sell := sell and not (short_entered or long_entered)
+
+long_short = 0
+long_last = (buy) and (nz(long_short[1]) == 0 or nz(long_short[1]) == -1)
+short_last = (sell) and (nz(long_short[1]) == 0 or nz(long_short[1]) == 1)
+long_short := long_last ? 1 : short_last ? -1 : long_short[1]
+ 
+
+// upTrend1 = plot(direction1 < 0 and long_entered? supertrend1 : na, "Up Trend", color = color.red, style=plot.style_linebr,offset = -1)
+// downTrend1 = plot(direction1 > 0 and short_entered? supertrend1 : na, "Down Trend", color = color.red, style=plot.style_linebr,offset = -1)
+
+
+plotshape(buy and inDateRange, color=color.new(color.green, 0), style=shape.labelup, text='Buy', textcolor=color.new(color.white, 0), location=location.belowbar,offset = -1,editable = false)
+plotshape(sell and inDateRange, color=color.new(color.red, 0), style=shape.labeldown, text='Sell', textcolor=color.new(color.white, 0), location=location.abovebar,offset = -1,editable = false)
+
+plotshape(buy and not inDateRange , color=color.new(color.green, 0), style=shape.labelup, text='Buy', textcolor=color.new(color.white, 0), location=location.belowbar,offset =0,editable = false)
+plotshape(sell and not inDateRange, color=color.new(color.red, 0), style=shape.labeldown, text='Sell', textcolor=color.new(color.white, 0), location=location.abovebar,offset = 0,editable = false)
+
+
+
+alertcondition(buy and not inDateRange,'BUY Alert')
+
+alertcondition(sell and not inDateRange,'SELL Alert')
+
+if buy
+    alert('Buy Triggered',alert.freq_once_per_bar_close)
+
+if sell 
+    alert('Sell Triggered',alert.freq_once_per_bar_close)
+longPrice = ta.valuewhen(buy and not (long_entered or short_entered), close, 0)
+shortPrice = ta.valuewhen(sell and not (long_entered or short_entered), close, 0)
+
+t_buy = buy and not (long_entered or short_entered)
+t_sell = sell and not (short_entered or long_entered)
+
+if inDateRange 
+    longPrice := ta.valuewhen(t_buy, close[1], 0)
+    shortPrice := ta.valuewhen(t_sell, close[1], 0)
+
+ 
+// if(use_sl)
+//     longPrice := valuewhen(buy1,entry_p , 0)
+//     shortPrice := valuewhen(sell1,entry_p, 0)
+ 
+ 
+// longStop = longPrice  - Stop
+// shortStop = shortPrice + Stop
+ 
+
+// // longStop := ta.valuewhen(buy, low[2] , 0)
+// // shortStop := ta.valuewhen(sell,high[2], 0)
+ 
+// longTake = longPrice +  ProfitPerc
+// shortTake = shortPrice  - ProfitPerc
+
+
+longStop = longPrice *(1- Stop/100)
+shortStop = shortPrice *(1+ Stop/100)
+longTake = longPrice *(1+ ProfitPerc/100)
+shortTake = shortPrice *(1- ProfitPerc/100)
+ 
+// plot(long_short==1  ? longStop : na, style=plot.style_linebr, color=color.red, linewidth=2, title="Long Fixed SL",offset = -1)
+// plot(long_short==-1 and not true_trade ? shortStop : na, style=plot.style_linebr, color=color.red, linewidth=2, title="Short Fixed SL",offset = -1)
+// plot(long_short==1  and not true_trade ? longTake : na, style=plot.style_linebr, color=color.navy, linewidth=2, title="Long Fixed TP",offset = -1)
+// plot(long_short==-1 and not true_trade ? shortTake : na, style=plot.style_linebr, color=color.navy, linewidth=2, title="Short Fixed TP",offset = -1)
+
+plot(long_short==1  ? longStop : na, style=plot.style_linebr, color=color.red, linewidth=2, title="Long Fixed SL")
+plot(long_short==-1 ? shortStop : na, style=plot.style_linebr, color=color.red, linewidth=2, title="Short Fixed SL")
+plot(long_short==1  ? longTake : na, style=plot.style_linebr, color=color.navy, linewidth=2, title="Long Fixed TP")
+plot(long_short==-1 ? shortTake : na, style=plot.style_linebr, color=color.navy, linewidth=2, title="Short Fixed TP")
+ 
+longBar1 = ta.barssince(long_last)
+longBar2 = longBar1 >= (inDateRange ? 1 :1) ? true : false
+shortBar1 = ta.barssince(short_last)
+shortBar2 = shortBar1 >= (inDateRange ? 1 :1) ? true : false
+ 
+longSLhit = long_short==1 and longBar2 and low < longStop
+ 
+// if(long_entered and  direction1 > 0)
+//     longSLhit := true
+ 
+plotshape(longSLhit and not (sell and  not(short_entered)  and (long_entered)), style=shape.labelup, location=location.belowbar, color=color.gray, size=size.tiny, title="Stop Loss", text="SL", textcolor=color.white)
+shortSLhit = long_short==-1 and shortBar2 and high > shortStop
+ 
+ 
+// if(short_entered and direction1 < 0)
+//     shortSLhit := true
+ 
+plotshape(shortSLhit and not (buy and  not(long_entered)  and (short_entered)), style=shape.labeldown, location=location.abovebar, color=color.gray, size=size.tiny, title="Stop Loss", text="SL", textcolor=color.white)
+ 
+ 
+longTPhit = long_short==1 and longBar2 and high > longTake
+plotshape(longTPhit, style=shape.labeldown, location=location.abovebar, color=color.navy, size=size.tiny, title="Target", text="TP", textcolor=color.white)
+shortTPhit = long_short==-1 and shortBar2 and low < shortTake
+plotshape(shortTPhit, style=shape.labelup, location=location.belowbar, color=color.navy, size=size.tiny, title="Target", text="TP", textcolor=color.white)
+ 
+long_short := (long_short==1 or long_short==0) and longBar2 and (longSLhit or longTPhit) ? 0 : (long_short==-1 or long_short==0) and shortBar2 and (shortSLhit or shortTPhit) ? 0 : long_short
+ 
+// Year = input.int(1979, minval=1, maxval=2099, title='Year')
+// Month = input.int(06, minval=1, maxval=12, title='Month')
+// Day = input.int(16, minval=1, maxval=31, title='Day')
+// Hour = input.int(09, minval=0, maxval=23, title='Hour')
+// Minute = input.int(20, minval=0, maxval=59, title='Minute')
+
+//impulse_func = timestamp(Year, Month, Day, Hour, Minute) == time ? 1 : 0
+impulse_func1 = timestamp(1979, 06, 16, 09, 15) == time ? 1 : 0
+
+
+var bull = 0
+bull := impulse_func1 ? 0 : longTPhit or shortTPhit ? bull + 1 : bull 
+
+var bear = 0
+bear := impulse_func1 ? 0 : shortSLhit or longSLhit ? bear + 1 : bear
+
+var bearbull = 0
+bearbull := impulse_func1 ? 0 : shortSLhit or longSLhit or longTPhit or shortTPhit ? bearbull + 1 : bearbull
+
+qty = input(15.00)
+Totalprofit = (bull * ((close*ProfitPerc)/100)) - (bear*((close*Stop)/100))
+
+percentaprofitable = bull/bearbull
+
+// plot(bull)
+// plot(bear,color = color.red)
+var mytable = table.new(position.top_right,9,9,frame_color = color.white,border_color =  color.white,border_width = 2,frame_width = 2)
+
+
+if close > 0
+    table.cell(mytable,0,0,text = 'Total Trades',text_color = color.white,bgcolor =color.rgb(0,0,0),text_size = size.small) 
+    table.cell(mytable,1,0,text = 'Target Hit ',text_color = color.white,bgcolor =color.rgb(0,0,0),text_size = size.small) 
+    table.cell(mytable,2,0,text = 'Stop Loss hit',text_color = color.white,bgcolor =color.rgb(0,0,0),text_size = size.small) 
+    table.cell(mytable,3,0,text = 'Total Profit',text_color = color.white,bgcolor =color.rgb(0,0,0),text_size = size.small) 
+    table.cell(mytable,4,0,text = 'Percentage Profitable (%)',text_color = color.white,bgcolor =color.rgb(0,0,0),text_size = size.small) 
+    table.cell(mytable,5,0,text = 'Risk Reward',text_color = color.white,bgcolor =color.rgb(0,0,0),text_size = size.small) 
+
+    table.cell(mytable,0,1,text = str.tostring(bearbull),text_color = color.white,bgcolor = color.rgb(0,0,0),text_size = size.small)
+    table.cell(mytable,1,1,text = str.tostring(bull),text_color = color.white,bgcolor = color.rgb(0,0,0),text_size = size.small)
+    table.cell(mytable,2,1,text = str.tostring(bear),text_color = color.white,bgcolor = color.rgb(0,0,0),text_size = size.small)
+    table.cell(mytable,3,1,text = str.tostring(Totalprofit*qty,'0.0'),text_color = color.lime,bgcolor = color.rgb(0,0,0),text_size = size.small)
+    table.cell(mytable,4,1,text = str.tostring(percentaprofitable,'0.0%'),text_color = color.lime,bgcolor = color.rgb(0,0,0),text_size = size.small)
+    table.cell(mytable,5,1,text = '1:'+str.tostring(ProfitPerc/Stop),text_color = color.white,bgcolor = color.rgb(0,0,0),text_size = size.small)
+
+// plotshape(buy and not(long_entered) , color = color.green , style = shape.labelup , text = "Buy" , textcolor = color.white , location = location.belowbar)
+// plotshape(sell and  not(short_entered)  , color = color.red , style = shape.labeldown , text = "Sell" , textcolor = color.white , location = location.abovebar)
+
+// intraday_exit = false
+
+// if (long_entered or short_entered) and sec[1]== true and sec == false
+//     intraday_exit := true
+
+
+//plotshape(intraday_exit, style=shape.labeldown, location=location.abovebar, color=color.orange, size=size.tiny, title="Stop Loss", text="Intraday Exit", textcolor=color.white)
+
+// plotshape(buy and not(long_entered) and (short_entered), color = color.green , style = shape.labelup , text = "FA Buy" , textcolor = color.white , location = location.belowbar)
+// plotshape(sell and not(short_entered)  and (long_entered), color = color.red , style = shape.labeldown , text = "FA Sell" , textcolor = color.white , location = location.abovebar)
+// var count = 0
+
+// count := longTPhit or shortTPhit ? 1 
+
+// alertcondition(condition=buy and  not(long_entered)  and (short_entered), title="Fully Algo Buy")
+// alertcondition(condition=sell and  not(short_entered)  and (long_entered), title="Fully Algo sell")
+ 
+// alertcondition(condition=buy  and not(long_entered), title="Buy")
+// alertcondition(condition=sell  and not(short_entered), title="Sell")
+
+exit = longTPhit or longSLhit or shortTPhit or shortSLhit
+
+alertcondition(exit,'Exit Alert')
+if exit
+    alert('Exit',alert.freq_once_per_bar)
+ 
+if(long_last)
+    long_entered := true
+    short_entered := false
+if(short_last)
+    short_entered := true
+    long_entered := false
+ 
+//alertcondition(condition= (longSLhit or shortSLhit) and not (sell and  not(short_entered)  and (long_entered)), title="Long/Short SL")
+//alertcondition(condition= shortSLhit and not (buy and  not(long_entered)  and (short_entered)), title="Short SL")
+ 
+// alertcondition(condition=longTPhit or shortTPhit, title="Long/short TP")
+// //alertcondition(condition=shortTPhit, title="Short TP")
+ 
+if(longSLhit or longTPhit)
+    long_entered := false
+ 
+if(shortSLhit or shortTPhit)
+    short_entered := false
+    
